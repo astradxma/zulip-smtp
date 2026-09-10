@@ -1,0 +1,66 @@
+name: build
+
+# Runs on magpie's self-hosted runners (default labels — see
+# adx-servers/actions-runners-magpie/README.md). magpie is podman-only and
+# rootless, so image work uses podman rather than docker.
+#
+# The registry is tailnet-only, so this cannot run on a GitHub-hosted runner.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  REGISTRY: registry.internal.astradx.com
+  IMAGE: zulip-smtp
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go test ./...
+
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # git describe needs the tag history
+
+      - id: meta
+        run: echo "tag=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
+      - name: build
+        run: |
+          podman build \
+            -t "$REGISTRY/$IMAGE:${{ steps.meta.outputs.tag }}" \
+            -t "$REGISTRY/$IMAGE:latest" \
+            .
+
+      - name: push
+        run: |
+          podman push "$REGISTRY/$IMAGE:${{ steps.meta.outputs.tag }}"
+          podman push "$REGISTRY/$IMAGE:latest"
+
+      - name: what was published
+        run: |
+          echo "pushed $REGISTRY/$IMAGE:${{ steps.meta.outputs.tag }}"
+          echo "deploy with: TAG=${{ steps.meta.outputs.tag }} docker compose up -d"

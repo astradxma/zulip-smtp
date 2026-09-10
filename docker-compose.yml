@@ -1,0 +1,57 @@
+# zulip-smtp on woodpecker, behind that host's Traefik.
+#
+# ⚠️ NO `ports:` BLOCK, EVER. Traefik terminates TLS on :465 and forwards plain
+# SMTP here. This container accepts AUTH on a connection it sees as plaintext
+# (see the note in main.go), which is safe only while the sole way in is Traefik.
+# Publishing a host port would put an unauthenticated-to-the-network SMTP
+# listener on the LAN and the tailnet.
+#
+# Prerequisite in ../trafeik-woodpecker/docker-compose.yml:
+#     - "--entrypoints.smtps.address=:465"
+services:
+  zulip-smtp:
+    image: registry.internal.astradx.com/zulip-smtp:${TAG:-latest}
+    container_name: zulip-smtp
+    restart: unless-stopped
+
+    # The entire configuration. Nothing here is secret -- callers supply their
+    # own Zulip bot credentials in SMTP AUTH, so this service stores none.
+    environment:
+      ZULIP_SITE: ${ZULIP_SITE:-https://astradx.zulipchat.com}
+      SMTP_DOMAIN: ${SMTP_DOMAIN:-zulipsmtp.internal.astradx.com}
+      LISTEN_ADDR: ":1025"
+      HEALTH_ADDR: ":8080"
+      MAX_MESSAGE_BYTES: "1048576"
+      MAX_RECIPIENTS: "10"
+
+    networks:
+      - traefik
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+
+      # ★ HostSNI(`*`), not the hostname. A TCP router that matches on a name
+      # requires the client to send SNI, and SMTP clients are inconsistent about
+      # it -- a client that omits it would not match, and the connection would
+      # die with nothing useful in any log. :465 serves exactly one service, so
+      # there is nothing to discriminate; tls.domains names the certificate.
+      # Same reasoning as the NATS router in elephant-events.
+      - "traefik.tcp.routers.zulipsmtp.entrypoints=smtps"
+      - "traefik.tcp.routers.zulipsmtp.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.zulipsmtp.tls.certresolver=letsencrypt"
+      - "traefik.tcp.routers.zulipsmtp.tls.domains[0].main=zulipsmtp.internal.astradx.com"
+      - "traefik.tcp.services.zulipsmtp.loadbalancer.server.port=1025"
+
+    # The image is distroless, so there is no shell to run a probe in -- the
+    # binary probes itself over loopback.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/zulip-smtp", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  traefik:
+    external: true
