@@ -9,6 +9,11 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (must already exist)"
+        required: true
 
 permissions:
   contents: write # create the GitHub Release and upload assets
@@ -20,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0 # goreleaser needs tags and history for the changelog
 
       - uses: actions/setup-go@v5

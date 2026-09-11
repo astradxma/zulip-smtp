@@ -6,7 +6,12 @@
 # same note.)
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY zulip-smtp /usr/local/bin/zulip-smtp
+# ★ dockers_v2 lays the binaries out per platform in the build context —
+# linux/amd64/zulip-smtp, linux/arm64/zulip-smtp — so one Dockerfile serves
+# every arch. TARGETPLATFORM is set automatically by buildx; a plain
+# `COPY zulip-smtp` finds nothing and fails with "not found".
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/zulip-smtp /usr/local/bin/zulip-smtp
 
 USER nonroot:nonroot
 EXPOSE 1025 8080
