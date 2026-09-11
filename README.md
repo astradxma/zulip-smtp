@@ -88,9 +88,26 @@ Structured JSON: bot, recipient, byte count, result, duration.
 password-reset links; a log line is not the place for them. (The `keycloak-zulip-bridge`
 proof-of-concept logged subjects — fine for one service you own, wrong here.)
 
+## Installing the binary
+
+Every tagged release publishes statically linked binaries for linux and macOS,
+amd64 and arm64, as `.tar.gz` with a `checksums.txt` — the same shape as
+lazygit and most small Go tools.
+
+```sh
+curl -fsSL https://github.com/astradxma/zulip-smtp/releases/latest/download/zulip-smtp_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz \
+  | tar xz zulip-smtp
+./zulip-smtp -version
+```
+
+(Substitute the version in place of `latest` for a pinned install; asset names
+are `zulip-smtp_<version>_<os>_<arch>.tar.gz`.)
+
 ## Deploying
 
-Image is built on magpie's runners and published to `registry.internal.astradx.com`.
+The image is public at `ghcr.io/astradxma/zulip-smtp`, multi-arch, built by
+GitHub-hosted runners on every tag — nothing in the release path touches the
+tailnet or magpie. `Dockerfile` is for local development builds only.
 
 Prerequisite, once, in `adx-servers/trafeik-woodpecker/docker-compose.yml`:
 
@@ -101,7 +118,7 @@ Prerequisite, once, in `adx-servers/trafeik-woodpecker/docker-compose.yml`:
 Then:
 
 ```sh
-TAG=v0.1.0 docker compose up -d
+TAG=0.1.0 docker compose up -d
 ```
 
 ⚠️ **There is no `ports:` block and there must never be one.** Traefik terminates
@@ -141,6 +158,19 @@ Then `EHLO x` should list `250-AUTH PLAIN`.
 ```sh
 go test ./...
 ZULIP_SITE=https://astradx.zulipchat.com go run .   # listens on :1025 plaintext
+```
+
+To cut a release, push a tag; `release.yml` does the rest:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+To see what a release would produce without publishing anything:
+
+```sh
+go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean --skip=publish
+ls dist/
 ```
 
 Locally there is no Traefik, so connect without TLS on 1025 and authenticate

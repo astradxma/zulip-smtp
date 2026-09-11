@@ -1,0 +1,14 @@
+# Used by GoReleaser only. The binary is already compiled for the target arch
+# and placed in the build context; this just wraps it.
+#
+# distroless/static, NOT scratch — the relay verifies Zulip's certificate on
+# every send, so it needs a CA bundle. (The developer Dockerfile carries the
+# same note.)
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY zulip-smtp /usr/local/bin/zulip-smtp
+
+USER nonroot:nonroot
+EXPOSE 1025 8080
+
+ENTRYPOINT ["/usr/local/bin/zulip-smtp"]

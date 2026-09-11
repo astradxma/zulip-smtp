@@ -1,3 +1,4 @@
 /zulip-smtp
 *.env
 !*.env.example
+/dist/

@@ -10,7 +10,9 @@
 #     - "--entrypoints.smtps.address=:465"
 services:
   zulip-smtp:
-    image: registry.internal.astradx.com/zulip-smtp:${TAG:-latest}
+    # Public image, built by GitHub-hosted runners on each tag (see release.yml).
+    # Pin TAG to a release; `latest` is for finding out what the latest is.
+    image: ghcr.io/astradxma/zulip-smtp:${TAG:-latest}
     container_name: zulip-smtp
     restart: unless-stopped
 

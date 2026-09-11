@@ -31,6 +31,9 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
+// version is stamped by GoReleaser via -ldflags; "dev" for a plain `go build`.
+var version = "dev"
+
 type config struct {
 	zulipSite       string
 	listenAddr      string
@@ -104,8 +107,13 @@ func runHealthCheck(addr string) {
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the local health endpoint and exit")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
+	if *showVersion {
+		fmt.Println("zulip-smtp", version)
+		return
+	}
 	if *healthcheck {
 		runHealthCheck(envOr("HEALTH_ADDR", ":8080"))
 		return
@@ -170,6 +178,7 @@ func main() {
 
 	go func() {
 		slog.Info("listening",
+			"version", version,
 			"smtp", cfg.listenAddr,
 			"health", cfg.healthAddr,
 			"zulip", cfg.zulipSite,

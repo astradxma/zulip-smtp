@@ -1,0 +1,81 @@
+# GoReleaser — the same release shape as lazygit and most small Go tools.
+#
+# A pushed tag `vX.Y.Z` produces, on GitHub-hosted runners with no self-hosted
+# infrastructure involved:
+#
+#   * statically linked binaries for linux/darwin × amd64/arm64, as .tar.gz
+#   * checksums.txt
+#   * a GitHub Release with generated notes
+#   * a multi-arch container image on ghcr.io
+#
+# Try it without publishing anything:
+#   go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean --skip=publish
+
+version: 2
+project_name: zulip-smtp
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: zulip-smtp
+    main: .
+    binary: zulip-smtp
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: tarballs
+    formats: [tar.gz]
+    # zulip-smtp_0.1.0_linux_amd64.tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+
+# ---- container image -------------------------------------------------------
+# One multi-platform build from the already-compiled binaries via
+# Dockerfile.goreleaser. GoReleaser assembles the manifest, so `docker pull`
+# of the plain tag lands the right arch.
+dockers_v2:
+  - id: ghcr
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - ghcr.io/astradxma/zulip-smtp
+    tags:
+      - "{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.description: "SMTP relay that delivers Zulip direct messages"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  github:
+    owner: astradxma
+    name: zulip-smtp
+  draft: false
+  prerelease: auto
